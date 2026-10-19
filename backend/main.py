@@ -1,0 +1,95 @@
+
+import os
+from pathlib import Path
+from typing import Literal
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from openai import OpenAI, OpenAIError
+from pydantic import BaseModel, Field
+
+load_dotenv(Path(__file__).with_name(".env"))
+
+app = FastAPI(title="AI Career Coach API")
+
+# Allow Next.js development frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=False,
+    allow_methods=["POST", "GET"],
+    allow_headers=["Content-Type"],
+)
+
+client = OpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=os.environ["NVIDIA_API_KEY"],
+    timeout=60.0,
+)
+
+class InterviewRequest(BaseModel):
+    job_role: str = Field(min_length=2, max_length=100)
+    difficulty: Literal[
+        "beginner", "intermediate", "advanced"
+    ] = "beginner"
+
+
+@app.get("/")
+def home():
+    return {"message": "AI Career Coach API is running"}
+
+
+@app.post("/api/interview/start")
+def start_interview(request: InterviewRequest):
+    try:
+        response = client.chat.completions.create(
+            model="nvidia/nemotron-3.5-lightning-30b-a3b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a professional job interviewer. "
+                        "Ask exactly one interview question. "
+                        "Match the user's job role and difficulty. "
+                        "For beginners, avoid advanced topics. "
+                        "Do not provide the answer."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Job role: {request.job_role}\n"
+                        f"Difficulty: {request.difficulty}\n"
+                        "Start the interview."
+                    )
+                }
+            ],
+            max_tokens=300,
+            temperature=0.6,
+            extra_body={
+                "chat_template_kwargs": {
+                    "enable_thinking": False
+                }
+            },
+        )
+
+        question = response.choices[0].message.content
+
+        if not question:
+            raise HTTPException(
+                status_code=502,
+                detail="The AI returned an empty response."
+            )
+
+        return {
+            "job_role": request.job_role,
+            "difficulty": request.difficulty,
+            "question": question.strip()
+        }
+
+    except OpenAIError as error:
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to generate an interview question."
+        ) from error
