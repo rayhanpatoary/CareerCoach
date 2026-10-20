@@ -19,6 +19,14 @@ app = FastAPI(title="AI Career Coach API")
 app.include_router(router)
 
 
+@app.middleware("http")
+async def private_interview_responses(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/interview"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.exception_handler(SQLAlchemyError)
 def storage_error(request, error):
     # Do not log connection URLs, SQL parameters, transcripts or upstream errors.
@@ -64,6 +72,10 @@ def start_interview(request: StartRequest, response: Response, authorization: st
     if request.persistent:
         owner = owner_credential(authorization)
         return get_service(get_repository()).start(request, owner)
+    if os.getenv("LEGACY_INTERVIEW_ENABLED", "true").lower() == "false":
+        raise HTTPException(410, "Use the interview workspace to start a persistent interview.")
+    if os.getenv("DATABASE_URL", "").strip():
+        get_repository().reserve_legacy_request()
     try:
         with get_client() as client:
             return generate_question(client, request)

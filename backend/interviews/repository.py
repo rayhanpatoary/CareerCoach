@@ -71,9 +71,9 @@ class PostgresRepository:
 
     def _rate(self, db, key, limit):
         window = now().replace(minute=0, second=0, microsecond=0)
-        statement = insert(RateBucket).values(key=key, window=window, count=1)
+        statement = insert(RateBucket).values(key=key, window_start=window, count=1)
         count = db.scalar(statement.on_conflict_do_update(
-            index_elements=[RateBucket.key, RateBucket.window],
+            index_elements=[RateBucket.key, RateBucket.window_start],
             set_={"count": RateBucket.count + 1}).returning(RateBucket.count))
         if count > limit:
             raise HTTPException(429, "Interview request limit reached. Please try again later.",
@@ -83,6 +83,11 @@ class PostgresRepository:
         with Session(self.engine) as db, db.begin():
             # Lock also makes transcript/status a consistent multi-query snapshot.
             return self._state(db, self._authorized(db, interview_id, owner, lock=True))
+
+    def reserve_legacy_request(self):
+        with Session(self.engine) as db, db.begin():
+            self._rate(db, "legacy:global", 100)
+            self._rate(db, "ai:global", 1500)
 
     def claim(self, interview_id, owner, operation_id, kind, payload, configuration=None):
         with Session(self.engine) as db, db.begin():
@@ -106,8 +111,14 @@ class PostgresRepository:
                 raise HTTPException(409, "A request is still processing. Wait, then retry the same action.",
                                     headers={"Retry-After": "3"})
             if row.active_operation and row.active_operation != operation_id:
-                # A crashed request must be recovered with its original payload.
-                raise HTTPException(409, "Recover the previous request before starting another action.")
+                # Its lease expired. Fence out the crashed worker and allow an
+                # explicit new action even if the original browser tab was lost.
+                abandoned = db.get(Operation, (interview_id, row.active_operation))
+                if abandoned:
+                    abandoned.status = "failed"
+                row.active_operation = row.lease_until = row.fence = None
+                row.status = "completed" if state.answered_count >= state.question_count else "in_progress"
+                state = state.model_copy(update={"status": row.status, "busy": False})
             if kind == "answer":
                 if state.status in ("completed", "evaluating", "finished") or not state.turns:
                     raise HTTPException(409, "This interview is no longer accepting answers.")
@@ -118,6 +129,7 @@ class PostgresRepository:
             if kind == "start" and state.turns:
                 raise HTTPException(409, "This interview has already started.")
             self._rate(db, "operations:" + digest(owner), 90)
+            self._rate(db, "ai:global", 1500)
             if not operation:
                 operation = Operation(interview_id=interview_id, id=operation_id,
                                       request_hash=expected_hash, kind=kind, status="pending")
@@ -171,4 +183,4 @@ class PostgresRepository:
         """Explicit maintenance command, never a response-lifetime background task."""
         with Session(self.engine) as db, db.begin():
             db.execute(delete(Interview).where(Interview.expires_at <= now()))
-            db.execute(delete(RateBucket).where(RateBucket.window < now() - timedelta(days=1)))
+            db.execute(delete(RateBucket).where(RateBucket.window_start < now() - timedelta(days=1)))

@@ -64,10 +64,27 @@ export function InterviewWorkspace() {
   }
   function finish() {if (state) void execute({path: `${state.id}/finish`, body: {operation_id: crypto.randomUUID()}});}
   const locked = loading || !!pending || !!state?.busy;
+  function resetLocal() {
+    save("active", null); save("pending", null); setPending(null); setState(null); setDraft(""); setError("");
+  }
+  async function refreshProgress() {
+    if (!state) return;
+    setLoading(true); setError("");
+    try {
+      const value = await sessionRequest(state.id);
+      setState(value);
+      if (!value.busy && !["generating_question", "evaluating"].includes(value.status)) {
+        setPending(null); save("pending", null);
+      } else setError("The last request still needs recovery. Retry it after processing finishes.");
+    } catch (e) {setError(e instanceof Error ? e.message : "Could not refresh progress.");}
+    finally {setLoading(false);}
+  }
   return <div className="shell page-content"><p className="eyebrow">YOUR PRACTICE SPACE</p><h1 className="page-title">{state ? "One answer. A little more confidence." : "A stronger interview starts here."}</h1><p className="page-description">A focused conversation, tailored to your next opportunity. Specific feedback when you finish.</p>
     {!ready ? <div className="panel loading-panel" role="status"><LoaderCircle className="spin"/> Restoring your practice space…</div> : <>
-      {error && <div className="error interview-error" role="alert">{error}</div>}
+      {error && <div className="error interview-error" role="alert" aria-label="Interview error">{error}</div>}
+      {error && !state && !loading && <button className="text-button mb-5" onClick={resetLocal}>Start a new interview instead</button>}
       {pending && !loading && <div className="recovery panel"><p>Your last action is saved. Retrying uses the same request ID and will not submit another answer.</p><button className="button primary" onClick={() => void execute(pending)}>Retry last action</button></div>}
+      {state && (pending || state.busy || ["generating_question", "evaluating"].includes(state.status)) && !loading && <button className="text-button mb-5" onClick={() => void refreshProgress()}>Check saved progress before continuing</button>}
       {!state ? <div className="workspace setup-workspace"><section className="panel setup"><div className="panel-heading"><span className="icon-box"><MessageSquare size={22}/></span><div><h2>Make it yours</h2><p>Set your interview focus</p></div></div>
         <form onSubmit={e => {e.preventDefault(); start();}}><fieldset disabled={locked}>
           <label htmlFor="role">Target job role</label><select id="role" value={role} onChange={e => {setRole(e.target.value); setConfig({...config, job_role: e.target.value === "Custom role" ? "" : e.target.value});}}>{roles.map(r => <option key={r}>{r}</option>)}</select>

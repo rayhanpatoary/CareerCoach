@@ -1,5 +1,13 @@
 # CareerCoach FastAPI backend
 
+The backend now also supports durable mock interviews using **Supabase
+PostgreSQL, SQLAlchemy, Psycopg 3 and Alembic**. Follow the
+[Supabase operations guide](../docs/mock-interview-operations.md) for exact
+connection strings, migration commands, schema privileges, tests, retention and
+preview deployment. The legacy stateless start contract below is preserved.
+Do not deploy the persistent flow before configuring storage and applying the
+migration. Database credentials belong only in the backend environment.
+
 The existing NVIDIA interview integration remains in `main.py:app`. The NVIDIA
 base URL is `https://integrate.api.nvidia.com/v1` and the model is
 `nvidia/nemotron-3.5-lightning-30b-a3b`. The OpenAI Python SDK is only the

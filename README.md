@@ -1,6 +1,8 @@
 # AI Career Coach
 
-Responsive Next.js frontend for the existing FastAPI / NVIDIA Nemotron interview service. The backend is unchanged.
+Next.js and FastAPI career coach with NVIDIA Nemotron mock interviews and
+Supabase PostgreSQL persistence. See the [architecture](docs/mock-interview-architecture.md)
+and [Supabase setup, migrations, testing and deployment guide](docs/mock-interview-operations.md).
 
 ## Run locally — Windows PowerShell
 
@@ -41,11 +43,21 @@ Keep `NVIDIA_API_KEY` only in `backend/.env` locally, or in the backend hosting 
 - `frontend/lib/`: typed API client and runtime request/response validation
 - `frontend/types/`: shared request and response types
 
-The browser calls Next.js `POST /api/interview/start`, which forwards the validated request to FastAPI. All questions come from the real backend. Seven preset roles, a custom role, and three difficulty levels are supported, alongside loading, retry, restart, and error states.
+The browser calls a same-origin Next.js proxy. Supabase credentials and the NVIDIA
+key remain backend-only. Configure Supabase and apply Alembic migrations before
+using the complete persistent interview workspace. It supports eight preset
+roles, custom roles, three experience levels, technical/behavioral/mixed formats,
+3/5/8 questions, optional job descriptions, contextual follow-ups and saved results.
 
-The proxy times out after 70 seconds, and the browser after 80 seconds. The route requests a 90-second deployment duration; ensure your hosting plan supports it. The unchanged backend NVIDIA client has a 60-second timeout and may retry independently.
+The proxy times out after 70 seconds, and the browser after 80 seconds. Routes
+retain the existing 90-second deployment duration. Persistent generation uses
+two bounded NVIDIA attempts with 25-second request timeouts; the legacy generator
+retains its existing behavior. Verify actual hosting duration limits before rollout.
 
-Answer submission, evaluation, and CV analysis are explicitly Coming Soon. CV selection supports PDF files up to 10 MB with drag/drop, filename display, and removal. Files stay in the browser and are never uploaded. Feedback categories describe future functionality without fabricated results.
+Answer submission, early finish and structured feedback are implemented in the
+interview flow. The results dashboard shows evidence, deterministic weighted
+scores, per-answer reviews and a practice plan. CV analysis remains Coming Soon;
+its existing local PDF selection is preserved. No fake AI evaluation is used.
 
 ## Validation
 
@@ -61,7 +73,12 @@ Production builds work with the backend offline. GitHub Actions runs lint, type 
 
 Dependency audit at implementation time reported five high-severity findings in the development-only ESLint → fast-glob → micromatch → braces chain. npm's proposed fix downgrades the Next.js ESLint configuration to version 14 and was not applied. Review upstream updates before deployment; these packages are not part of the production runtime.
 
-Manual integration check: start both apps, choose a role and difficulty, then click Start Interview. Confirm a question appears with the selected settings. Generate another question and restart. Stop FastAPI and retry to check the unavailable error. Select and remove a PDF on CV Reviewer; analysis should remain disabled. Check navigation and mobile layouts.
+Automated backend tests mock all NVIDIA traffic; Playwright tests the complete
+interview and recovery flow on desktop/mobile. GitHub Actions also provides a
+disposable PostgreSQL service for migrations and concurrency tests. Run
+`npm run test:e2e` after `npx playwright install chromium`. See the operations
+guide for bounded checks and required live-preview validation. No local mocked
+test establishes production Supabase/NVIDIA behavior.
 
 ## Deploy frontend on Vercel
 

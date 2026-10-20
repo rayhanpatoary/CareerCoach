@@ -70,5 +70,5 @@ class RateBucket(Base):
     __tablename__ = "rate_buckets"
     __table_args__ = ({"schema": SCHEMA},)
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
-    window: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     count: Mapped[int] = mapped_column(Integer)

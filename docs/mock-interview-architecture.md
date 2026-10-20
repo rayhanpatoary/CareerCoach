@@ -1,1 +1,0 @@
-# Mock interview implementation proposal

@@ -40,7 +40,7 @@ class NvidiaInterviewer:
             except (APIConnectionError, APIStatusError) as error:
                 transient = isinstance(error, APIConnectionError) or error.status_code in (408, 429, 500, 502, 503, 504)
                 if transient and attempt == 0 and deadline - time.monotonic() > 2:
-                    time.sleep(0.5 + random.random() * 0.5)
+                    time.sleep(0.5 * (2 ** attempt) + random.random() * 0.5)
                     continue
                 status = 504 if isinstance(error, APITimeoutError) else 502
                 raise HTTPException(status, "The AI service is temporarily unavailable. Retry this action.") from error

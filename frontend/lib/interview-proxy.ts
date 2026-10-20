@@ -3,8 +3,17 @@ import { NextResponse } from "next/server";
 
 export const cookieName = process.env.NODE_ENV === "production" ? "__Host-career-session" : "career-session";
 export function sameOrigin(request: Request) {
-  return request.headers.get("origin") === new URL(request.url).origin &&
-    (!request.headers.get("sec-fetch-site") || ["same-origin", "none"].includes(request.headers.get("sec-fetch-site")!));
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const parsed = new URL(origin);
+    // Next.js can reconstruct request.url using its internal localhost hostname.
+    // The incoming Host is the authority that the browser actually addressed;
+    // browsers cannot forge it while sending a cross-origin request.
+    return parsed.origin === origin && parsed.host === request.headers.get("host") &&
+      parsed.protocol === new URL(request.url).protocol &&
+      (!request.headers.get("sec-fetch-site") || ["same-origin", "none"].includes(request.headers.get("sec-fetch-site")!));
+  } catch { return false; }
 }
 export async function proxyInterview(request: Request, path: string) {
   if (request.method !== "GET" && !sameOrigin(request)) return NextResponse.json({error: "Use this site's interview workspace."}, {status: 403});

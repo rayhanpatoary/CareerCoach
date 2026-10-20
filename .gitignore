@@ -19,6 +19,8 @@ node_modules/
 out/
 *.tsbuildinfo
 .vercel/
+playwright-report/
+test-results/
 
 # System
 .DS_Store

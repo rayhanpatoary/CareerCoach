@@ -12,14 +12,19 @@ raw = os.getenv("DIRECT_DATABASE_URL", "").strip()
 if not raw:
     raise RuntimeError("Set DIRECT_DATABASE_URL to the direct or session-pooler PostgreSQL URL")
 
+
+def include_name(name, type_, parent_names):
+    # Autogeneration must never propose dropping Supabase or unrelated tables.
+    return name == "career_coach" if type_ == "schema" else True
+
 if context.is_offline_mode():
     context.configure(url=database_url(raw), target_metadata=Base.metadata,
-                      literal_binds=True, include_schemas=True)
+                      literal_binds=True, include_schemas=True, include_name=include_name)
     with context.begin_transaction():
         context.run_migrations()
 else:
     with build_engine(raw).connect() as connection:
-        context.configure(connection=connection, target_metadata=Base.metadata, include_schemas=True)
+        context.configure(connection=connection, target_metadata=Base.metadata, include_schemas=True, include_name=include_name)
         with context.begin_transaction():
             # Serialize concurrent migration invocations. Transaction-local only.
             connection.exec_driver_sql("SELECT pg_advisory_xact_lock(78315624)")

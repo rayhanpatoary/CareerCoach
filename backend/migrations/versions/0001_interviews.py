@@ -38,8 +38,8 @@ def upgrade():
             status varchar(16) NOT NULL CHECK(status IN ('pending','failed','done')),
             PRIMARY KEY(interview_id, id))""",
         """CREATE TABLE career_coach.rate_buckets (
-            key varchar(100) NOT NULL, window timestamptz NOT NULL, count integer NOT NULL,
-            PRIMARY KEY(key, window))""",
+            key varchar(100) NOT NULL, window_start timestamptz NOT NULL, count integer NOT NULL,
+            PRIMARY KEY(key, window_start))""",
         "REVOKE ALL ON ALL TABLES IN SCHEMA career_coach FROM PUBLIC",
         "ALTER DEFAULT PRIVILEGES IN SCHEMA career_coach REVOKE ALL ON TABLES FROM PUBLIC",
     ]
