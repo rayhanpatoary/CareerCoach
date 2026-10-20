@@ -3,14 +3,26 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI, OpenAIError, APITimeoutError
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
+
+from interviews.schemas import StartRequest
+from interviews.routes import router, get_service, get_repository, owner_credential
 
 load_dotenv(Path(__file__).with_name(".env"))
 
 app = FastAPI(title="AI Career Coach API")
+app.include_router(router)
+
+
+@app.exception_handler(SQLAlchemyError)
+def storage_error(request, error):
+    # Do not log connection URLs, SQL parameters, transcripts or upstream errors.
+    return JSONResponse(status_code=503, content={"detail": "Interview storage is temporarily unavailable. Retry this action."})
 
 # Allow Next.js development frontend
 app.add_middleware(
@@ -19,8 +31,8 @@ app.add_middleware(
         "CORS_ORIGINS", "http://localhost:3000"
     ).split(",") if origin.strip()],
     allow_credentials=False,
-    allow_methods=["POST", "GET"],
-    allow_headers=["Content-Type"],
+    allow_methods=["POST", "GET", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 def get_client():
@@ -47,7 +59,11 @@ def home():
 
 
 @app.post("/api/interview/start")
-def start_interview(request: InterviewRequest):
+def start_interview(request: StartRequest, response: Response, authorization: str = Header(default="")):
+    response.headers["Cache-Control"] = "no-store"
+    if request.persistent:
+        owner = owner_credential(authorization)
+        return get_service(get_repository()).start(request, owner)
     try:
         with get_client() as client:
             return generate_question(client, request)

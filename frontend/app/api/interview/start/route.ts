@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { validRequest, validResponse } from "@/lib/interview";
+import { proxyInterview } from "@/lib/interview-proxy";
 export const maxDuration = 90;
 export async function POST(request: Request) {
+  const copy = request.clone();
   let input: unknown;
   try { input = await request.json(); } catch { return NextResponse.json({error: "Send a valid JSON request."}, {status: 400}); }
+  if (input && typeof input === "object" && "persistent" in input && input.persistent === true) return proxyInterview(copy, "start");
   if (!validRequest(input)) return NextResponse.json({error: "Enter a role between 2 and 100 characters and select a valid difficulty."}, {status: 400});
   try {
     const base = process.env.BACKEND_API_URL;
