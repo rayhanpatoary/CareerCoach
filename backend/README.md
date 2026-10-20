@@ -109,6 +109,12 @@ Sending GET to the POST endpoint should return 405, not a platform 404.
 
 ## Troubleshooting
 
+The CV Reviewer adds `/api/cv/reviews` (POST/GET) and
+`/api/cv/reviews/{id}` (GET/DELETE). See [the CV operations guide](../CV_REVIEWER.md)
+for the additive Alembic migration 0002, request contracts, PDF limits,
+private history, retention cleanup and release steps. It reuses existing
+Supabase/NVIDIA configuration and does not change interview endpoints.
+
 - **Vercel 404 NOT_FOUND:** verify Root Directory `backend`, FastAPI preset,
   dependency installation, deployed commit, and domain assignment. A platform
   404 usually means routing/discovery rather than NVIDIA failure. A FastAPI JSON

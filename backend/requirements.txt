@@ -5,3 +5,4 @@ python-dotenv==1.2.2
 SQLAlchemy==2.0.55
 psycopg[binary]==3.3.6
 alembic==1.20.0
+pypdf==6.21.1

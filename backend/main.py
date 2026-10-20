@@ -12,17 +12,19 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from interviews.schemas import StartRequest
 from interviews.routes import router, get_service, get_repository, owner_credential
+from cv.routes import router as cv_router
 
 load_dotenv(Path(__file__).with_name(".env"))
 
 app = FastAPI(title="AI Career Coach API")
 app.include_router(router)
+app.include_router(cv_router)
 
 
 @app.middleware("http")
 async def private_interview_responses(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/api/interview"):
+    if request.url.path.startswith(("/api/interview", "/api/cv")):
         response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -30,7 +32,7 @@ async def private_interview_responses(request, call_next):
 @app.exception_handler(SQLAlchemyError)
 def storage_error(request, error):
     # Do not log connection URLs, SQL parameters, transcripts or upstream errors.
-    return JSONResponse(status_code=503, content={"detail": "Interview storage is temporarily unavailable. Retry this action."})
+    return JSONResponse(status_code=503, content={"detail": "Career Coach storage is temporarily unavailable. Retry this action."})
 
 # Allow Next.js development frontend
 app.add_middleware(

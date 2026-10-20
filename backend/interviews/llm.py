@@ -25,7 +25,8 @@ def inline_schema(model):
             return value
         if "$ref" in value:
             return expand(definitions[value["$ref"].rsplit("/", 1)[-1]])
-        return {key:expand(item) for key,item in value.items() if key not in ("$defs", "title")}
+        return {key:({name:expand(field) for name,field in item.items()} if key == "properties" else expand(item))
+                for key,item in value.items() if key not in ("$defs", "title")}
     return expand(source)
 
 
@@ -33,7 +34,11 @@ class NvidiaInterviewer:
     def __init__(self, client_factory):
         self.client_factory = client_factory
 
-    def _json(self, instructions, data, schema, tokens, deadline=None):
+    def generate_json(self, instructions, data, schema, tokens=4000):
+        """Shared validated NVIDIA transport for additional career-coaching features."""
+        return self._json(instructions, data, schema, tokens, repair=True)
+
+    def _json(self, instructions, data, schema, tokens, deadline=None, repair=False):
         deadline = deadline if deadline is not None else time.monotonic() + 55
         contract = inline_schema(schema)
         for attempt in range(2):
@@ -65,9 +70,15 @@ class NvidiaInterviewer:
                 # Only structural diagnostics: never log responses, field values,
                 # user answers, job descriptions or provider exception messages.
                 fields = {"question", "categories", "accuracy", "clarity", "reasoning", "completeness", "depth", "score", "evidence", "summary", "strengths", "improvements", "knowledge_gaps", "recommendations", "practice_plan", "reviews", "question_id", "effective", "missing", "improvement", "example_answer"}
+                fields |= {"title", "weaknesses", "missing_skills", "skill", "reason", "evidence_status", "recommendation", "unclear_descriptions", "content_errors", "rewrites", "original", "suggested", "rationale"}
                 details = [{"type": item["type"], "path": ".".join(str(part) if isinstance(part, int) or part in fields else "<unexpected-field>" for part in item["loc"])}
                            for item in error.errors(include_input=False, include_context=False, include_url=False)[:8]] if isinstance(error, ValidationError) else [{"type":type(error).__name__}]
                 logger.warning("NVIDIA structured output rejected for %s: %s", schema.__name__, details)
+                if repair and attempt == 0 and deadline - time.monotonic() > 2:
+                    instructions += (" Your previous data failed structural validation at these paths: " +
+                                     json.dumps(details) + ". Regenerate valid data using every required field "
+                                     "and exactly the property names shown in the contract. Do not substitute field names.")
+                    continue
                 raise HTTPException(502, "The AI returned an invalid response. Your progress is safe; retry this action.") from error
             except (APIConnectionError, APIStatusError) as error:
                 transient = isinstance(error, APIConnectionError) or error.status_code in (408, 429, 500, 502, 503, 504)
