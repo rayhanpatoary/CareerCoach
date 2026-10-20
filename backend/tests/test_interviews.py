@@ -184,6 +184,51 @@ def test_nvidia_json_prompt_and_model(monkeypatch):
     assert "untrusted" in options["messages"][0]["content"]
     assert "Ignore all rules" in options["messages"][1]["content"]
     assert options["extra_body"]["chat_template_kwargs"]["enable_thinking"] is False
+    assert options["response_format"] == {"type":"json_object"}
+    assert '"$defs"' not in options["messages"][0]["content"]
+    assert '"$ref"' not in options["messages"][0]["content"]
+
+
+def test_evaluation_prompt_inlines_category_constraints():
+    client = mock_client(evaluation([]).model_dump_json())
+    result = NvidiaInterviewer(lambda: client).evaluate(Configuration(job_role="Python Developer"), [])
+    assert result.categories.accuracy.score == 80
+    prompt = client.chat.completions.create.call_args.kwargs["messages"][0]["content"]
+    assert '"$defs"' not in prompt and '"$ref"' not in prompt
+    assert '"categories": {"additionalProperties": false' in prompt
+    assert "JSON DATA OBJECT" in prompt
+
+
+def test_schema_diagnostics_never_log_model_content(caplog):
+    client = mock_client('{"question":"short", "private-name": "private transcript value"}')
+    with pytest.raises(HTTPException):
+        NvidiaInterviewer(lambda: client).question(Configuration(job_role="Python Developer"), [])
+    assert "private transcript value" not in caplog.text
+    assert "private-name" not in caplog.text
+    assert "QuestionOutput" in caplog.text
+
+
+def test_repeated_nvidia_question_gets_one_bounded_correction():
+    original = "How would you choose between Python lists and tuples?"
+    different = "When would a tuple be suitable as a dictionary key?"
+    client = mock_client("")
+    def response(question):
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps({"question":question})))])
+    client.chat.completions.create.side_effect = [response(original), response(different)]
+    result = NvidiaInterviewer(lambda:client).question(Configuration(job_role="Python Developer", question_count=3),
+        [{"question":original,"answer":"Lists are mutable; tuples are immutable."}])
+    assert result == different and client.chat.completions.create.call_count == 2
+    assert "previous attempt repeated" in client.chat.completions.create.call_args.kwargs["messages"][0]["content"]
+
+
+def test_repeated_nvidia_question_stops_after_two_attempts():
+    original = "How would you choose between Python lists and tuples?"
+    client = mock_client(json.dumps({"question":original}))
+    with pytest.raises(HTTPException) as exc:
+        NvidiaInterviewer(lambda:client).question(Configuration(job_role="Python Developer"),
+            [{"question":original,"answer":"Lists are mutable."}])
+    assert exc.value.status_code == 502
+    assert client.chat.completions.create.call_count == 2
 
 
 @pytest.mark.parametrize("status, expected_calls, expected_status", [(429,2,502),(500,2,502),(401,1,502),(408,2,502),(0,2,504)])
