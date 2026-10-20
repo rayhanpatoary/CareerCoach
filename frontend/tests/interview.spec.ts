@@ -1,7 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { type InterviewState, type Evaluation } from "../types/interview";
 
-async function mockInterview(page: Page, failAnswer = false) {
+async function mockInterview(page: Page, failAnswer = false, holdStart = false) {
+  let releaseStart!:()=>void;
+  const startGate=new Promise<void>(resolve=>{releaseStart=resolve;});
   let state: InterviewState;
   let failed = false;
   const operations = new Set<string>(), answerIds: string[] = [];
@@ -10,7 +12,7 @@ async function mockInterview(page: Page, failAnswer = false) {
     const body = request.method() === "POST" && request.postData() ? request.postDataJSON() : {};
     if (path[0] === "session") return route.fulfill({json: {ready: true}});
     if (path[0] === "start") {
-      await new Promise(resolve => setTimeout(resolve, 150));
+      if(holdStart)await startGate;
       state = {...body, id: body.operation_id, status:"in_progress", question:"How do Python lists and tuples differ?", turns:[], answered_count:0,
         started_at:new Date().toISOString(), completed_at:null, expires_at:"2027-01-01T00:00:00Z", feedback:null, busy:false};
       state.turns.push({id:crypto.randomUUID(), position:1, question:state.question!, answer:null, asked_at:state.started_at, answered_at:null});
@@ -42,17 +44,18 @@ async function mockInterview(page: Page, failAnswer = false) {
     } else if (request.method() === "DELETE") return route.fulfill({status:204});
     return route.fulfill({json: state!});
   });
-  return {answerIds};
+  return {answerIds,releaseStart};
 }
 
 test("complete interview, progress, dashboard, saved results and retry configuration", async ({page}, testInfo) => {
-  await mockInterview(page); await page.goto("/interview");
+  const {releaseStart}=await mockInterview(page,false,true); await page.goto("/interview");
   await page.getByLabel("Number of questions").selectOption("3");
   await page.getByLabel("Interview type").selectOption("mixed");
   await page.getByLabel("Job description").fill("Build Python APIs with PostgreSQL.");
   await page.screenshot({path:testInfo.outputPath("setup.png"), fullPage:true});
   await page.getByRole("button", {name:"Start Interview", exact:true}).click();
   await expect(page.getByRole("button", {name:"Preparing your interview…"})).toBeDisabled();
+  releaseStart();
   await expect(page.getByText("How do Python lists and tuples differ?", {exact:true})).toBeVisible();
   for (let i=0;i<3;i++) {
     await page.getByLabel("Your answer", {exact:true}).fill(`Lists are mutable; tuples are immutable. Example ${i}.`);

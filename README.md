@@ -39,7 +39,7 @@ Keep `NVIDIA_API_KEY` only in `backend/.env` locally, or in the backend hosting 
 - `frontend/app/`: pages, layout, styles, and `api/interview/start/route.ts`
 - `frontend/components/layout/`: reusable navigation and footer
 - `frontend/components/interview/`: interview setup and question workspace
-- `frontend/components/cv/`: local PDF selection and planned feedback categories
+- `frontend/components/cv/`: PDF/text upload, personalized feedback and private review history
 - `frontend/lib/`: typed API client and runtime request/response validation
 - `frontend/types/`: shared request and response types
 
@@ -56,8 +56,10 @@ retains its existing behavior. Verify actual hosting duration limits before roll
 
 Answer submission, early finish and structured feedback are implemented in the
 interview flow. The results dashboard shows evidence, deterministic weighted
-scores, per-answer reviews and a practice plan. CV analysis remains Coming Soon;
-its existing local PDF selection is preserved. No fake AI evaluation is used.
+scores, per-answer reviews and a practice plan. CV analysis supports PDF or pasted
+text, role-specific NVIDIA feedback, private Supabase history and deletion.
+See [CV_REVIEWER.md](CV_REVIEWER.md) for limits, privacy, migration 0002,
+testing and release instructions. No fake AI evaluation is used.
 
 ## Validation
 
