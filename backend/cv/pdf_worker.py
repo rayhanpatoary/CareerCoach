@@ -3,6 +3,8 @@ import io
 import json
 import logging
 import sys
+from pathlib import Path
+from dataclasses import asdict
 
 
 def main():
@@ -22,19 +24,18 @@ def main():
     pages = len(reader.pages)
     if not 1 <= pages <= 10:
         return {"error":"Choose a CV with 1–10 pages."}
-    pieces, total = [], 0
     for page in reader.pages:
         if page.get("/Annots") and len(page["/Annots"]) > 100:
             return {"error":"This PDF is too complex. Paste the CV text instead."}
         content = page.get_contents()
         if content is not None and len(content.get_data()) > 2 * 1024 * 1024:
             return {"error":"This PDF is too complex. Paste the CV text instead."}
-        text = page.extract_text() or ""
-        total += len(text)
-        if total > 30000:
-            return {"error":"The extracted CV exceeds 30,000 characters. Shorten it or paste a shorter version."}
-        pieces.append(text)
-    return {"text":"\n".join(pieces), "page_count":pages}
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+    from cv.layout import extract_layout
+    document=extract_layout(data)
+    if "rotated_text_not_supported" in document.warnings:
+        return {"error":"This PDF contains rotated text that cannot be read reliably. Paste its text in reading order instead."}
+    return asdict(document)
 
 
 if __name__ == "__main__":

@@ -23,4 +23,6 @@ playwright-report/
 test-results/
 
 # System
+/*.pdf
+/private-test-inputs/
 .DS_Store

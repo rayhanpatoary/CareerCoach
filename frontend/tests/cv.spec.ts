@@ -12,7 +12,7 @@ async function mock(page:Page,fail=false,hold=false){
       const body=r.postDataJSON() as CvRequest;bodies.push(body);
       if(hold)await gate;
       if(fail&&!failed){failed=true;return route.fulfill({status:503,json:{error:"NVIDIA temporarily unavailable. Retry this action."}});}
-      review={id:body.operation_id,job_role:body.job_role,source:body.pdf_base64?"pdf":"text",status:"finished",character_count:cv.length,page_count:body.pdf_base64?1:null,created_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString(),limitations:["Plain-text extraction cannot assess visual layout.","Do not invent qualifications or experience."],analysis:{summary:"Your backend experience is relevant. Explain the outcomes of your projects.",strengths:[{title:"Relevant backend skills",evidence:"FastAPI and PostgreSQL",recommendation:"Describe one API project."}],weaknesses:[],missing_skills:[{skill:"CI/CD",reason:"Expected in the target role.",evidence_status:"not_evidenced",recommendation:"Add a deployment example only if you have one."}],unclear_descriptions:[],content_errors:[],rewrites:[{original:"Developed automated tests",suggested:"Created automated tests for the application",rationale:"Make the scope clearer."}],practice_plan:["Add a verified project outcome."]}};
+      review={id:body.operation_id,job_role:body.job_role,source:body.pdf_base64?"pdf":"text",status:"finished",character_count:cv.length,page_count:body.pdf_base64?1:null,created_at:new Date().toISOString(),expires_at:new Date(Date.now()+7*86400000).toISOString(),limitations:["Plain-text extraction cannot assess visual layout.","Do not invent qualifications or experience."],analysis:{summary:"Your backend experience is relevant. Explain the outcomes of your projects.",strengths:[{title:"Relevant backend skills",evidence:"FastAPI and PostgreSQL",recommendation:"Describe one API project.",source_id:body.pdf_base64?"p01_r01_b001":"text_001",source_page:body.pdf_base64?1:null,source_section:"experience"}],weaknesses:[],missing_skills:[{skill:"CI/CD",reason:"Expected in the target role.",evidence_status:"not_evidenced",recommendation:"Add a deployment example only if you have one."}],unclear_descriptions:[],content_errors:[],rewrites:[{original:"Developed automated tests",suggested:"Created automated tests for the application",rationale:"Make the scope clearer."}],practice_plan:["Add a verified project outcome."],extraction:{confidence:body.pdf_base64?"medium":"high",warnings:[],source_block_count:1,page_count:body.pdf_base64?1:null}}};
     }
     return route.fulfill({json:path.endsWith("reviews")&&r.method()==="GET"?{items:review?[review]:[],next_cursor:null}:review});
   });return {bodies,release};
@@ -45,6 +45,8 @@ test("PDF upload and unsupported or oversized files",async({page},info)=>{
   await input.setInputFiles({name:"cv.pdf",mimeType:"application/pdf",buffer:Buffer.from("%PDF-1.7 test fixture %%EOF")});await page.getByLabel("Target job role").fill("Developer");
   await page.screenshot({path:info.outputPath("cv-upload.png"),fullPage:true});
   await page.getByRole("button",{name:"Analyze My CV"}).click();await expect(page.getByRole("heading",{name:"Your strengths"})).toBeVisible();expect(bodies[0].pdf_base64).toBeTruthy();expect(bodies[0].cv_text).toBeUndefined();
+  await expect(page.getByText(/Source: experience · Page 1/)).toBeVisible();
+  await expect(page.getByText(/Reading-order confidence: medium/)).toBeVisible();
 });
 
 test("CV proxy protects the session, origin and body size",async({request})=>{

@@ -49,7 +49,7 @@ def test_cv_transport_repairs_once_within_existing_attempt_budget(caplog):
 
 def analysis():
     return CvAnalysis(summary="Your backend experience is clearly described. Add evidence of impact where available.",
-        strengths=[dict(title="Relevant backend work",evidence="reliable APIs with FastAPI and PostgreSQL",recommendation="Describe one API project in more detail.")],
+        strengths=[dict(title="Relevant technical skills",source_id="text_001",evidence="reliable APIs with FastAPI and PostgreSQL",recommendation="Describe one API project in more detail.")],
         weaknesses=[],missing_skills=[],unclear_descriptions=[],content_errors=[],rewrites=[],
         practice_plan=["Describe one project outcome using only verified facts."])
 
@@ -125,7 +125,7 @@ def test_analysis_calls_existing_llm_and_cached_retries():
     repo.claim.return_value=(saved(req,"processing"),fence);repo.complete.return_value=saved(req)
     llm.generate_json.return_value=analysis()
     service=CvService(repo,llm);assert service.review(req,"a"*43).analysis
-    assert llm.generate_json.call_args.args[1]["cv_text"]==CV
+    assert llm.generate_json.call_args.args[1]["resume"]["sources"][0]["text"]==CV
     assert repo.complete.call_args.args[2]==fence
     repo.claim.return_value=(saved(req),None)
     assert service.review(req,"a"*43).id==req.operation_id
@@ -148,11 +148,12 @@ def test_rewrites_cannot_add_achievement_metrics():
     req=request();repo=MagicMock();llm=MagicMock();repo.claim.return_value=(saved(req,"processing"),uuid4())
     output=analysis()
     from cv.schemas import Rewrite
-    output.rewrites=[Rewrite(original="Developed automated tests",suggested="Developed 500 automated tests",rationale="More specific")]
+    output.rewrites=[Rewrite(original="Developed automated tests",suggested="Developed 500 automated tests",rationale="More specific",source_id="text_001")]
     llm.generate_json.return_value=output
-    with pytest.raises(HTTPException) as exc:CvService(repo,llm).review(req,"a"*43)
-    assert "unsupported numbers" in exc.value.detail
-    repo.complete.assert_not_called()
+    CvService(repo,llm).review(req,"a"*43)
+    committed=repo.complete.call_args.args[3]
+    assert not committed.rewrites
+    assert "unsupported_rewrite_omitted" in committed.extraction.warnings
 
 
 def test_api_contract_auth_privacy_and_history():

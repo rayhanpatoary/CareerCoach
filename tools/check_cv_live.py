@@ -25,12 +25,12 @@ def main():
         def complete(self,review_id,owner,fence,analysis):return analysis
         def release(self,*args):pass
 
-    source=("Backend developer. Built a Python and FastAPI task tracking API with PostgreSQL. "
+    source=("Professional Experience\nBackend developer. Built a Python and FastAPI task tracking API with PostgreSQL. "
         "Wrote pytest unit tests for validation and documented the API setup. "
         "Collaborated with a designer to clarify error messages. Education: software development bootcamp. "
-        "Skills: Python, SQL, Git, FastAPI and PostgreSQL. Seeking a junior backend developer role.")
-    request=ReviewRequest(operation_id=uuid4(),job_role="Junior Backend Developer",
-        job_description="Build Python APIs, write tests, collaborate and maintain CI pipelines.",cv_text=source)
+        "\nTechnical Skills\nPython, SQL, Git, FastAPI and PostgreSQL.\nProjects\nCreated a Next.js task dashboard for the API.")
+    request=ReviewRequest(operation_id=uuid4(),job_role="Full Stack Developer",
+        job_description="Entwickle Python APIs und Angular/Next.js Anwendungen. PostgreSQL-Kenntnisse, automatisierte Tests und CI/CD sind erwünscht. Collaborate with designers.",cv_text=source)
     try:
         result=CvService(MemorySink(),NvidiaInterviewer(get_client)).review(request,"synthetic-smoke-owner")
     except HTTPException as e:

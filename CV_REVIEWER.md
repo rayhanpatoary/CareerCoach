@@ -1,5 +1,10 @@
 # AI CV Reviewer: architecture and release guide
 
+For the current coordinate-aware PDF pipeline, normalization, source citations,
+reference-resume acceptance and updated validation results, see
+[PDF_RELIABILITY.md](PDF_RELIABILITY.md). It supersedes the original extraction
+and strict-substring behavior described in the initial implementation report below.
+
 ## Architecture
 
 `/cv-review` uses the existing Next.js same-origin API proxy and anonymous

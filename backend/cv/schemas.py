@@ -34,6 +34,9 @@ class Finding(StrictModel):
     title: str = Field(min_length=1, max_length=120)
     evidence: str = Field(min_length=5, max_length=600)
     recommendation: str = Field(min_length=1, max_length=1000)
+    source_id: str | None = None
+    source_page: int | None = None
+    source_section: str | None = None
 
 
 class MissingSkill(StrictModel):
@@ -47,6 +50,16 @@ class Rewrite(StrictModel):
     original: str = Field(min_length=5, max_length=800)
     suggested: str = Field(min_length=1, max_length=1200)
     rationale: str = Field(min_length=1, max_length=600)
+    source_id: str | None = None
+    source_page: int | None = None
+    source_section: str | None = None
+
+
+class ExtractionInfo(StrictModel):
+    confidence: Literal["high","medium","low"]
+    warnings: list[str]
+    source_block_count: int
+    page_count: int | None
 
 
 class CvAnalysis(StrictModel):
@@ -58,6 +71,7 @@ class CvAnalysis(StrictModel):
     content_errors: list[Finding] = Field(max_length=5)
     rewrites: list[Rewrite] = Field(max_length=4)
     practice_plan: list[str] = Field(min_length=1, max_length=5)
+    extraction: ExtractionInfo | None = None
 
     @model_validator(mode="after")
     def bound_plan(self):

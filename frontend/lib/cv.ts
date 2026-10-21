@@ -2,6 +2,9 @@ import {record} from "@/lib/interview-session";
 import type {CvHistory,CvReview,CvSummary,CvRequest} from "@/types/cv";
 const text = (v:unknown) => typeof v === "string";
 const texts = (v:unknown) => Array.isArray(v) && v.every(text);
+const citation = (v:unknown) => record(v) &&
+  (v.source_id==null||text(v.source_id)) && (v.source_section==null||text(v.source_section)) &&
+  (v.source_page==null||Number.isInteger(v.source_page));
 const fields = (v:unknown,keys:string[]) => record(v) && keys.every(k=>text(v[k]));
 function validSummary(v:unknown):v is CvSummary {
   return record(v) && fields(v,["id","job_role","created_at","expires_at"]) &&
@@ -13,12 +16,14 @@ export function validCvReview(v:unknown):v is CvReview {
   if (v.analysis===null) return v.status!=="finished";
   if (!record(v.analysis) || v.status!=="finished") return false;
   const a=v.analysis;
-  return text(a.summary) && texts(a.practice_plan) &&
+  return (a.extraction==null||(record(a.extraction)&&["high","medium","low"].includes(String(a.extraction.confidence))&&
+    texts(a.extraction.warnings)&&Number.isInteger(a.extraction.source_block_count)&&
+    (a.extraction.page_count===null||Number.isInteger(a.extraction.page_count)))) && text(a.summary) && texts(a.practice_plan) &&
     ["strengths","weaknesses","unclear_descriptions","content_errors"].every(key=>Array.isArray(a[key]) &&
-      a[key].every(item=>fields(item,["title","evidence","recommendation"]))) &&
+      a[key].every(item=>fields(item,["title","evidence","recommendation"]) && citation(item))) &&
     Array.isArray(a.missing_skills) && a.missing_skills.every(item=>fields(item,["skill","reason","evidence_status","recommendation"]) &&
       ["not_evidenced","partially_evidenced"].includes(item.evidence_status)) &&
-    Array.isArray(a.rewrites) && a.rewrites.every(item=>fields(item,["original","suggested","rationale"]));
+    Array.isArray(a.rewrites) && a.rewrites.every(item=>fields(item,["original","suggested","rationale"]) && citation(item));
 }
 export class CvError extends Error {constructor(message:string,public status:number){super(message);}}
 async function request(path:string,body?:CvRequest,method?:string) {

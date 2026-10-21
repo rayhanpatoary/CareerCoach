@@ -54,3 +54,27 @@ def test_deletion_expiry_and_stale_fence(repository,engine):
     assert not repository.history("a"*43).items
     repository.cleanup()
     with pytest.raises(HTTPException):repository.read(id,"a"*43)
+
+
+def test_grounded_pdf_review_persistence_retry_and_deletion(repository):
+    from unittest.mock import MagicMock
+    from cv.service import CvService
+    from cv.grounding import GroundedAnalysis
+    from test_cv import pdf_request
+    from test_cv_documents import layout_pdf,column
+    req=pdf_request(layout_pdf([column(35,"Experience","Example Employer","Python")]))
+    llm=MagicMock()
+    def generate(instructions,payload,schema,**kwargs):
+        a=analysis().model_dump()
+        a["strengths"][0].update(title="Relevant professional experience",source_id=payload["resume"]["sources"][0]["source_id"],evidence="Built reliable Python applications.")
+        return kwargs["validator"](GroundedAnalysis.model_validate(a))
+    llm.generate_json.side_effect=generate
+    service=CvService(repository,llm);owner="c"*43
+    state=service.review(req,owner)
+    assert state.analysis.strengths[0].source_page==1
+    assert repository.read(state.id,owner).analysis.extraction.source_block_count>=1
+    assert service.review(req,owner).id==state.id and llm.generate_json.call_count==1
+    with pytest.raises(HTTPException) as exc:repository.read(state.id,"d"*43)
+    assert exc.value.status_code==404
+    repository.remove(state.id,owner)
+    with pytest.raises(HTTPException):repository.read(state.id,owner)
