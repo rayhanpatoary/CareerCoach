@@ -4,6 +4,7 @@ import os
 import random
 import re
 import time
+from dataclasses import dataclass,field
 
 from fastapi import HTTPException
 from openai import APIConnectionError, APITimeoutError, APIStatusError
@@ -12,6 +13,13 @@ from pydantic import ValidationError
 from .schemas import EvaluationOutput, QuestionOutput
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class GenerationBudget:
+    """Shared wall-clock/attempt cap for a multi-stage coaching request."""
+    remaining: int = 3
+    deadline: float = field(default_factory=lambda:time.monotonic()+55)
 
 
 def inline_schema(model):
@@ -34,17 +42,20 @@ class NvidiaInterviewer:
     def __init__(self, client_factory):
         self.client_factory = client_factory
 
-    def generate_json(self, instructions, data, schema, tokens=4000, *, validator=None, temperature=0.2):
+    def generate_json(self, instructions, data, schema, tokens=4000, *, validator=None, temperature=0.2,budget=None):
         """Shared validated NVIDIA transport for additional career-coaching features."""
-        return self._json(instructions, data, schema, tokens, repair=True,validator=validator,temperature=temperature)
+        return self._json(instructions, data, schema, tokens, repair=True,validator=validator,temperature=temperature,budget=budget)
 
-    def _json(self, instructions, data, schema, tokens, deadline=None, repair=False, validator=None, temperature=0.4):
-        deadline = deadline if deadline is not None else time.monotonic() + 55
+    def _json(self, instructions, data, schema, tokens, deadline=None, repair=False, validator=None, temperature=0.4,budget=None):
+        deadline = budget.deadline if budget else deadline if deadline is not None else time.monotonic() + 55
         contract = inline_schema(schema)
         for attempt in range(2):
             try:
                 if deadline - time.monotonic() < 1:
                     raise HTTPException(504, "The AI service took too long. Retry this action.")
+                if budget:
+                    if budget.remaining<1:raise HTTPException(502,"The AI could not complete a verified analysis within its attempt limit. Retry this action.")
+                    budget.remaining-=1
                 with self.client_factory() as client:
                     result = client.with_options(timeout=min(25, deadline - time.monotonic()), max_retries=0).chat.completions.create(
                         model=os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b"),
@@ -73,24 +84,25 @@ class NvidiaInterviewer:
                 # user answers, job descriptions or provider exception messages.
                 fields = {"question", "categories", "accuracy", "clarity", "reasoning", "completeness", "depth", "score", "evidence", "summary", "strengths", "improvements", "knowledge_gaps", "recommendations", "practice_plan", "reviews", "question_id", "effective", "missing", "improvement", "example_answer"}
                 fields |= {"title", "weaknesses", "missing_skills", "skill", "reason", "evidence_status", "recommendation", "unclear_descriptions", "content_errors", "rewrites", "original", "suggested", "rationale"}
+                fields |= {"requirements","label","category","importance","jd_source_id","jd_quote","status","source_id","quote","page","section","action_kind","suggested_action","context_source_ids","coverage_complete","language","horizon","requirement_index","action"}
                 details = [{"type": item["type"], "path": ".".join(str(part) if isinstance(part, int) or part in fields else "<unexpected-field>" for part in item["loc"])}
                            for item in error.errors(include_input=False, include_context=False, include_url=False)[:8]] if isinstance(error, ValidationError) else [{"type":type(error).__name__}]
                 if validator and hasattr(error,"code"):
                     # The validator emits fixed codes only, never CV text or quotes.
                     details=[{"type":error.code}]
                 logger.warning("NVIDIA structured output rejected for %s: %s", schema.__name__, details)
-                if repair and attempt == 0 and deadline - time.monotonic() > 2:
+                if repair and attempt == 0 and deadline - time.monotonic() > 2 and (not budget or budget.remaining>0):
                     instructions += (" Your previous data failed structural validation at these paths: " +
                                      json.dumps(details) + ". Regenerate valid data using every required field "
                                      "and exactly the property names shown in the contract. Do not substitute field names.")
                     continue
-                message=("The AI could not produce a verifiable CV review. No feedback was saved. "
+                message=("The AI could not produce a verifiable source-grounded analysis. No feedback was saved. "
                          "Retry once, or paste the CV text in reading order to correct extraction." if validator else
                          "The AI returned an invalid response. Your progress is safe; retry this action.")
                 raise HTTPException(502, message) from error
             except (APIConnectionError, APIStatusError) as error:
                 transient = isinstance(error, APIConnectionError) or error.status_code in (408, 429, 500, 502, 503, 504)
-                if transient and attempt == 0 and deadline - time.monotonic() > 2:
+                if transient and attempt == 0 and deadline - time.monotonic() > 2 and (not budget or budget.remaining>0):
                     time.sleep(0.5 * (2 ** attempt) + random.random() * 0.5)
                     continue
                 status = 504 if isinstance(error, APITimeoutError) else 502

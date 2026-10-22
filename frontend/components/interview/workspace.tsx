@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, LoaderCircle, MessageSquare, Send, Sparkles } from "lucide-react";
 import { ensureSession, save, saved, sessionRequest } from "@/lib/interview-session";
+import {readJobFit,jobFitInterviewSetup} from "@/lib/job-fit";
 import { difficulties, type Configuration, type Difficulty, type InterviewState, type InterviewType, type PendingAction } from "@/types/interview";
 const roles = ["Python Developer", "Frontend Developer", "Backend Developer", "Full Stack Developer", "Data Scientist", "Machine Learning Engineer", "AI Engineer", "Data Analyst", "Custom role"];
 const levels = ["Beginner / Junior", "Intermediate / Mid-level", "Advanced / Senior"];
@@ -23,6 +24,11 @@ export function InterviewWorkspace() {
       try {
         const storedConfig = saved("configuration"), previous = saved("pending"), id = saved("active");
         if (storedConfig) {const c = JSON.parse(storedConfig) as Configuration; if (typeof c.job_role === "string") {setConfig(c); setRole(roles.includes(c.job_role) ? c.job_role : "Custom role");}}
+        const jobFitId=new URLSearchParams(window.location.search).get("jobFit");
+        if(jobFitId&&/^[a-f0-9-]{36}$/i.test(jobFitId)&&!id&&!previous){
+          const analysis=await readJobFit(jobFitId);if(!alive)return;
+          if(analysis.analysis){const setup=jobFitInterviewSetup(analysis);setConfig(setup);setRole(roles.includes(setup.job_role)?setup.job_role:"Custom role");}
+        }
         if (previous) setPending(JSON.parse(previous) as PendingAction);
         if (id) {
           const value = await sessionRequest(id); if (!alive) return;

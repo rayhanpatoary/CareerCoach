@@ -63,6 +63,11 @@ testing and release instructions. No fake AI evaluation is used.
 
 ## Validation
 
+Job-Fit Analysis adds `/job-fit` and a private evidence/skills-gap dashboard,
+reusing the existing CV extraction, NVIDIA and Supabase infrastructure. See
+[JOB_FIT.md](JOB_FIT.md) for the score rubric, new API, additive migration `0003`,
+privacy/retention policy, bounded tests and preview-first release steps.
+
 ```powershell
 cd frontend
 npm run lint

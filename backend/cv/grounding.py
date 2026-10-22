@@ -50,16 +50,20 @@ def _words(value):
     return set(re.findall(r"[\w+#]+(?:[./-][\w+#]+)*",normalize_text(value,fold=True)))
 
 
+def verify_source_quote(document,source_id,quote):
+    block=next((b for b in document.blocks if b.source_id==source_id),None)
+    if block is None:raise GroundingError("unknown_source_id")
+    if normalize_text(quote,fold=True) not in normalize_text(block.original,fold=True):
+        raise GroundingError("quote_not_in_cited_source")
+    return block
+
+
 def validate_grounding(analysis,document):
-    sources={block.source_id:block for block in document.blocks}
     groups=(analysis.strengths,analysis.weaknesses,analysis.unclear_descriptions,analysis.content_errors)
     accepted_rewrites=[]
     for item in [v for group in groups for v in group]+list(analysis.rewrites):
-        block=sources.get(item.source_id)
-        if block is None:raise GroundingError("unknown_source_id")
         quote=item.original if isinstance(item,Rewrite) else item.evidence
-        if normalize_text(quote,fold=True) not in normalize_text(block.original,fold=True):
-            raise GroundingError("quote_not_in_cited_source")
+        block=verify_source_quote(document,item.source_id,quote)
         item.source_page,item.source_section=block.page,block.section
         if isinstance(item,Rewrite):
             if (not _numbers(item.suggested).issubset(_numbers(item.original)) or

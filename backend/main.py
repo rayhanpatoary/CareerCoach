@@ -13,18 +13,20 @@ from sqlalchemy.exc import SQLAlchemyError
 from interviews.schemas import StartRequest
 from interviews.routes import router, get_service, get_repository, owner_credential
 from cv.routes import router as cv_router
+from job_fit.routes import router as job_fit_router
 
 load_dotenv(Path(__file__).with_name(".env"))
 
 app = FastAPI(title="AI Career Coach API")
 app.include_router(router)
 app.include_router(cv_router)
+app.include_router(job_fit_router)
 
 
 @app.middleware("http")
 async def private_interview_responses(request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/api/interview", "/api/cv")):
+    if request.url.path.startswith(("/api/interview", "/api/cv", "/api/job-fit")):
         response.headers["Cache-Control"] = "no-store"
     return response
 

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from interviews.database import build_engine, database_url
 from interviews.tables import Base
 from cv import tables as cv_tables  # Register CV metadata without changing interview tables.
+from job_fit import tables as job_fit_tables
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 raw = os.getenv("DIRECT_DATABASE_URL", "").strip()
