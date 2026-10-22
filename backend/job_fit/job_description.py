@@ -5,8 +5,9 @@ from cv.document import normalize_text
 
 PREFERRED=re.compile(r"\b(preferred|optional|nice.to.have|a plus|desirable|wünschenswert|von vorteil|idealerweise|pluspunkt)\b",re.I)
 MANDATORY=re.compile(r"\b(must|required|mandatory|essential|erforderlich|voraussetzung|zwingend|muss|müssen)\b",re.I)
-RESPONSIBILITY=re.compile(r"^(responsibilities|your tasks|aufgaben|deine aufgaben|ihre aufgaben)\s*:?$",re.I)
-HEADING=re.compile(r"^(?:(?:required|mandatory|preferred|essential)\s+(?:skills|qualifications|requirements)|requirements|qualifications|anforderungen|dein profil|ihr profil|wünschenswert|optional|nice.to.have|benefits|about us|über uns|wir bieten)\s*:?$",re.I)
+RESPONSIBILITY=re.compile(r"^(responsibilities|your responsibilities|your tasks|aufgaben|deine aufgaben|ihre aufgaben)\s*:?$",re.I)
+PROFILE=re.compile(r"^(requirements|qualifications|your profile|profile|anforderungen|dein profil|ihr profil)\s*:?$",re.I)
+HEADING=re.compile(r"^(?:(?:required|mandatory|preferred|essential)\s+(?:skills|qualifications|requirements)|requirements|qualifications|your profile|profile|anforderungen|dein profil|ihr profil|wünschenswert|optional|nice.to.have|benefits|about us|über uns|wir bieten)\s*:?$",re.I)
 
 
 @dataclass
@@ -26,7 +27,7 @@ def parse_job_description(text):
         heading=bool(HEADING.fullmatch(line) or RESPONSIBILITY.fullmatch(line))
         if heading:
             if PREFERRED.search(line):hint="preferred"
-            elif MANDATORY.search(line) or re.fullmatch(r"(requirements|qualifications|anforderungen|dein profil|ihr profil):?",line,re.I):hint="mandatory"
+            elif MANDATORY.search(line) or PROFILE.fullmatch(line):hint="mandatory"
             elif RESPONSIBILITY.match(line):hint="alignment"
             elif re.fullmatch(r"(benefits|about us|über uns|wir bieten):?",line,re.I):hint=None
         for sentence in re.split(r"(?<=[.!?;])\s+(?=[A-ZÄÖÜ])",line):

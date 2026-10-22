@@ -8,6 +8,10 @@ Example 'Entwickle wartbare APIs für interne Anwendungen.': label='wartbare API
 Keep numbers/seniority/certifications/language-level qualifiers: e.g. '5 years of Python experience'.
 Use importance_hint where supplied. Distinguish mandatory, preferred and general role/responsibility alignment.
 Identify technical, tools, experience, education, responsibility, domain, communication, language and seniority criteria.
+category MUST be one of those nine names. Use communication for soft skills/collaboration and responsibility
+for learning/ownership expectations. Use education for degrees/certifications. Do not invent new category names.
+Keep labels brief (usually 1-6 words) and job quotes short: copy only the relevant phrase and qualifiers,
+not a whole paragraph. For a technology list, each technology's own exact name can be its quote.
 List heading/benefits/company-context source IDs in context_source_ids; do not hide actual requirements there.
 Account for all posting clauses. At most 16 criteria. If no job criteria are stated, return requirements=[].
 If coverage is incomplete or more criteria are needed,
@@ -21,6 +25,9 @@ Return exactly ONE match per requirement_index (zero-based), no duplicates or ne
 matched=direct evidence, partial=related/transferable evidence, not_evidenced=insufficient CV evidence,
 uncertain=ambiguous context. A missing CV keyword does not prove the person lacks knowledge or ability.
 For matched/partial cite 1-2 short exact CV quotes with their original source_id. Do not paraphrase quotes.
+Normalized CV source text is authoritative, just as in CV review. Copy from one source block per quote;
+never combine multiple blocks, translate quotations, insert ellipses, or use a job-source ID for CV evidence.
+Leave evidence page/section null; Python supplies the actual source metadata. Keep quotes concise, ideally under 160 characters.
 For not_evidenced use evidence=[]. For uncertain cite context only if useful.
 SQL Server may be partial support for PostgreSQL, NEVER direct PostgreSQL experience.
 Training/projects are not employment; dates/skills lists alone do not prove years, certification or proficiency.

@@ -8,6 +8,7 @@ from interviews.schemas import StrictModel
 MAX_PDF_BYTES = 3 * 1024 * 1024
 MAX_BODY_BYTES = 4_300_000
 MAX_TEXT = 30_000
+MAX_EVIDENCE_CHARACTERS = 600
 LIMITATIONS = [
     "This is a review of extracted text. It cannot reliably assess PDF visual layout, columns, typography or graphics.",
     "Missing skills mean not evidenced in the submitted text, not proof that you lack them. AI suggestions may be wrong; verify every change.",
@@ -32,7 +33,7 @@ class ReviewRequest(StrictModel):
 
 class Finding(StrictModel):
     title: str = Field(min_length=1, max_length=120)
-    evidence: str = Field(min_length=5, max_length=600)
+    evidence: str = Field(min_length=5, max_length=MAX_EVIDENCE_CHARACTERS)
     recommendation: str = Field(min_length=1, max_length=1000)
     source_id: str | None = None
     source_page: int | None = None

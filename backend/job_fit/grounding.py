@@ -22,7 +22,7 @@ def mentioned(term,text):
 
 def validate_job(output,clauses):
     sources={c.source_id:c for c in clauses};seen=set();used=set();warnings=[]
-    for item in output.requirements:
+    for index,item in enumerate(output.requirements):
         source=sources.get(item.jd_source_id)
         if source is None:raise GroundingError("unknown_job_source")
         if source.heading:raise GroundingError("job_heading_is_not_requirement")
@@ -35,7 +35,7 @@ def validate_job(output,clauses):
             candidate=re.sub(r"^(?:develop|build|create|implement)\s+","",item.label,flags=re.I)
             if candidate!=item.label and len(candidate)>=2 and NORM(candidate) in NORM(item.jd_quote):
                 item.label=candidate;warnings.append("requirement_label_source_normalized")
-            else:raise GroundingError("requirement_label_not_in_quote")
+            else:raise GroundingError("requirement_label_not_in_quote",path=("requirements",index,"label"))
         label=NORM(item.label)
         if label in seen:raise GroundingError("duplicate_job_requirement")
         seen.add(label);used.add(item.jd_source_id)
@@ -53,14 +53,17 @@ def validate_job(output,clauses):
 
 def validate_matches(output,document,clauses):
     output,warnings=validate_job(output,clauses)
-    for item in output.requirements:
+    for index,item in enumerate(output.requirements):
         if item.status in ("matched","partial") and not item.evidence:
             raise GroundingError("positive_match_requires_cv_evidence")
         if item.status=="not_evidenced" and item.evidence:
             raise GroundingError("absent_match_has_contradictory_evidence")
         blocks=[]
-        for citation in item.evidence:
-            block=verify_source_quote(document,citation.source_id,citation.quote)
+        for citation_index,citation in enumerate(item.evidence):
+            try:block=verify_source_quote(document,citation.source_id,citation.quote)
+            except GroundingError as error:
+                error.path=("matches",index,"evidence",citation_index,"source_id" if error.code=="unknown_source_id" else "quote")
+                raise
             citation.page,citation.section=block.page,block.section;blocks.append(block)
         quoted=" ".join(c.quote for c in item.evidence)
         if item.status=="matched":

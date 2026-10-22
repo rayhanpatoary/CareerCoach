@@ -10,6 +10,8 @@ from .grounding import validate_matches,validate_job
 from .schemas import ModelOutput,JobFitAnalysis,AssessedRequirement,ParsedJob,ClassifiedMatches
 from .scoring import calculate_score
 from .prompts import JOB_INSTRUCTIONS,MATCH_INSTRUCTIONS
+from .errors import analysis_stage
+from cv.grounding import GroundingError
 
 EXPLANATIONS={
     "matched":"The cited CV text directly supports this criterion. Verify its scope against the job quote.",
@@ -37,15 +39,16 @@ class JobFitService:
                 result,warnings=validate_job(value,clauses);diagnostics.extend(warnings);return result
             # Stage 1 cannot see the CV. Stage 2 cannot invent requirements: it
             # returns classifications for fixed, validated criterion indices.
-            job=self.llm.generate_json(JOB_INSTRUCTIONS,{"job_title":request.job_role,
-                "job_sources":[asdict(c) for c in clauses]},ParsedJob,tokens=2500,validator=validate_parsed,budget=budget)
-            validate_parsed(job)
+            with analysis_stage("job_requirements"):
+                job=self.llm.generate_json(JOB_INSTRUCTIONS,{"job_title":request.job_role,
+                    "job_sources":[asdict(c) for c in clauses]},ParsedJob,tokens=2500,validator=validate_parsed,budget=budget)
+                validate_parsed(job)
             if not job.requirements:
                 raise HTTPException(422,"No assessable job criteria were identified. Paste the posting's responsibilities and required or preferred qualifications.")
             def assemble(value):
                 indices=[m.requirement_index for m in value.matches]
                 if sorted(indices)!=list(range(len(job.requirements))):
-                    raise ValueError("Match indices must cover each fixed requirement exactly once")
+                    raise GroundingError("match_indices_incomplete",path=("matches",))
                 by_index={m.requirement_index:m for m in value.matches}
                 return ModelOutput(**job.model_dump(exclude={"requirements"}),
                     requirements=[{**r.model_dump(),**by_index[i].model_dump(exclude={"requirement_index"})} for i,r in enumerate(job.requirements)],
@@ -58,12 +61,10 @@ class JobFitService:
                     match.status,match.evidence,match.action_kind=item.status,item.evidence,item.action_kind
                 value.rewrites=result.rewrites
                 return value
-            classified=self.llm.generate_json(MATCH_INSTRUCTIONS,{"requirements":[dict(requirement_index=i,**r.model_dump()) for i,r in enumerate(job.requirements)],
-                "cv":document.payload()},ClassifiedMatches,tokens=3500,validator=validate_classifications,budget=budget)
-            output=assemble(classified)
-            try:output,warnings=validate_matches(output,document,clauses)
-            except ValueError as error:
-                raise HTTPException(502,"The AI could not verify its job-fit evidence. No analysis was saved. Retry the same action.") from error
+            with analysis_stage("cv_matching"):
+                classified=self.llm.generate_json(MATCH_INSTRUCTIONS,{"requirements":[dict(requirement_index=i,**r.model_dump()) for i,r in enumerate(job.requirements)],
+                    "cv":document.payload()},ClassifiedMatches,tokens=3500,validator=validate_classifications,budget=budget)
+                output,warnings=validate_matches(assemble(classified),document,clauses)
             analysis=JobFitAnalysis(company=request.company,language=output.language,
                 requirements=[AssessedRequirement(**r.model_dump(),id=f"requirement_{i+1:02d}",explanation=EXPLANATIONS[r.status]) for i,r in enumerate(output.requirements)],
                 score=calculate_score(output.requirements,coverage_complete=output.coverage_complete,layout_confidence=document.confidence),

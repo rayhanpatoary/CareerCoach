@@ -13,6 +13,16 @@ from pydantic import ValidationError
 from .schemas import EvaluationOutput, QuestionOutput
 
 logger = logging.getLogger(__name__)
+REPAIR_HINTS={
+    "quote_not_in_cited_source":"Copy an exact short substring from the CV source text at the cited source_id. Do not paraphrase, translate, insert ellipses or combine sources.",
+    "unknown_source_id":"Use a CV source_id provided in the resume sources, never a job-description source ID.",
+    "job_quote_not_in_source":"Copy the job quote from its one cited job source; do not use CV text or paraphrase.",
+    "requirement_label_not_in_quote":"Copy a short exact phrase from the job quote for label; do not generate or translate a descriptive title.",
+    "job_heading_is_not_requirement":"Headings are context_source_ids, not skill requirements. Cite an actual requirement clause.",
+    "positive_match_requires_cv_evidence":"Matched/partial criteria require a verbatim CV quote and its real source_id. Use not_evidenced with evidence=[] when absent.",
+    "absent_match_has_contradictory_evidence":"For not_evidenced use evidence=[], not a quote that tries to prove absence.",
+    "match_indices_incomplete":"Return exactly one match for every supplied requirement_index, with no duplicate or new indices.",
+}
 
 
 @dataclass
@@ -84,17 +94,20 @@ class NvidiaInterviewer:
                 # user answers, job descriptions or provider exception messages.
                 fields = {"question", "categories", "accuracy", "clarity", "reasoning", "completeness", "depth", "score", "evidence", "summary", "strengths", "improvements", "knowledge_gaps", "recommendations", "practice_plan", "reviews", "question_id", "effective", "missing", "improvement", "example_answer"}
                 fields |= {"title", "weaknesses", "missing_skills", "skill", "reason", "evidence_status", "recommendation", "unclear_descriptions", "content_errors", "rewrites", "original", "suggested", "rationale"}
-                fields |= {"requirements","label","category","importance","jd_source_id","jd_quote","status","source_id","quote","page","section","action_kind","suggested_action","context_source_ids","coverage_complete","language","horizon","requirement_index","action"}
+                fields |= {"requirements","matches","label","category","importance","jd_source_id","jd_quote","status","source_id","quote","page","section","action_kind","suggested_action","context_source_ids","coverage_complete","language","horizon","requirement_index","action"}
                 details = [{"type": item["type"], "path": ".".join(str(part) if isinstance(part, int) or part in fields else "<unexpected-field>" for part in item["loc"])}
                            for item in error.errors(include_input=False, include_context=False, include_url=False)[:8]] if isinstance(error, ValidationError) else [{"type":type(error).__name__}]
                 if validator and hasattr(error,"code"):
                     # The validator emits fixed codes only, never CV text or quotes.
                     details=[{"type":error.code}]
+                    if getattr(error,"path",()):
+                        details[0]["path"]=".".join(str(part) if isinstance(part,int) or part in fields else "<unexpected-field>" for part in error.path[:8])
                 logger.warning("NVIDIA structured output rejected for %s: %s", schema.__name__, details)
                 if repair and attempt == 0 and deadline - time.monotonic() > 2 and (not budget or budget.remaining>0):
                     instructions += (" Your previous data failed structural validation at these paths: " +
                                      json.dumps(details) + ". Regenerate valid data using every required field "
                                      "and exactly the property names shown in the contract. Do not substitute field names.")
+                    instructions+=" "+REPAIR_HINTS.get(getattr(error,"code",None),"")
                     continue
                 message=("The AI could not produce a verifiable source-grounded analysis. No feedback was saved. "
                          "Retry once, or paste the CV text in reading order to correct extraction." if validator else

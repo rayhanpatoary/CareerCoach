@@ -1,0 +1,14 @@
+Your Responsibilities
+- Develop and enhance software for advanced digital printing systems.
+- Build web-based user interfaces and control functions for job, colour, and media management.
+- Design, implement, test, and document innovative software solutions.
+- Develop interfaces for seamless integration with customer IT environments.
+- Collaborate with international, cross-functional teams, including UX, quality assurance, and hardware development.
+Your Profile
+- Bachelor's or Master's degree in Computer Science, Software Engineering, or a related field.
+- Interest in full-stack web development and interface development.
+- Knowledge of technologies such as C#, Python, Angular, HTML5, Git, or Robot Framework.
+- Good communication skills in German and English.
+- Interest in usability, visualisation, and user experience design.
+- Willingness to learn new technologies, explore AI applications, and take ownership of your work.
+- A collaborative mindset and enthusiasm for working in an international environment.

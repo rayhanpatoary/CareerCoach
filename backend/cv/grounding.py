@@ -30,8 +30,9 @@ class GroundedAnalysis(CvAnalysis):
 
 
 class GroundingError(ValueError):
-    def __init__(self,code):
+    def __init__(self,code,path=()):
         self.code=code
+        self.path=path
         super().__init__("Source validation failed")
 
 

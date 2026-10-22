@@ -2,7 +2,7 @@ from typing import Literal
 from uuid import UUID
 from pydantic import Field,field_validator,ValidationError
 from interviews.schemas import StrictModel
-from cv.schemas import ReviewRequest, ReviewSummary, ExtractionInfo
+from cv.schemas import ReviewRequest, ReviewSummary, ExtractionInfo,MAX_EVIDENCE_CHARACTERS
 from cv.grounding import GroundedRewrite
 
 Importance=Literal["mandatory","preferred","alignment"]
@@ -18,7 +18,7 @@ class JobFitRequest(ReviewRequest):
 
 class Evidence(StrictModel):
     source_id: str = Field(min_length=1,max_length=60)
-    quote: str = Field(min_length=2,max_length=300)
+    quote: str = Field(min_length=2,max_length=MAX_EVIDENCE_CHARACTERS)
     page: int | None = None
     section: str | None = None
 
@@ -30,18 +30,26 @@ class JobCriterion(StrictModel):
     jd_source_id: str = Field(min_length=1,max_length=60)
     jd_quote: str = Field(min_length=2,max_length=350)
 
+    @field_validator("category",mode="before")
+    @classmethod
+    def category_alias(cls,value):
+        # Normalize known taxonomy names, never source facts or quoted evidence.
+        return {"soft_skills":"communication","soft_skill":"communication","communication_skills":"communication",
+            "technical_skills":"technical","technical_skill":"technical","tool":"tools","qualifications":"education",
+            "responsibilities":"responsibility","work_experience":"experience","languages":"language"}.get(value,value) if isinstance(value,str) else value
+
 
 class CriterionMatch(StrictModel):
     requirement_index: int = Field(ge=0,le=15)
     status: Status
-    evidence: list[Evidence] = Field(max_length=2)
+    evidence: list[Evidence] = Field(default_factory=list,max_length=2)
     action_kind: ActionKind
     suggested_action: str = Field(min_length=10,max_length=450)
 
 
 class Requirement(JobCriterion):
     status: Status
-    evidence: list[Evidence] = Field(max_length=2)
+    evidence: list[Evidence] = Field(default_factory=list,max_length=2)
     action_kind: ActionKind
     suggested_action: str = Field(min_length=10,max_length=450)
 
