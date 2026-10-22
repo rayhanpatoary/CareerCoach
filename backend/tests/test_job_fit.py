@@ -180,7 +180,8 @@ def test_incomplete_coverage_and_required_context_cannot_get_overall_score():
     value=output();value.requirements.pop();value.context_source_ids=["jd_003"]
     value,warnings=validate(value)
     assert not value.coverage_complete and "unassessed_explicit_job_clause" in warnings
-    assert calculate_score(value.requirements,coverage_complete=value.coverage_complete).overall is None
+    score=calculate_score(value.requirements,coverage_complete=value.coverage_complete)
+    assert score.overall==75 and score.score_status=="provisional" and score.scope=="assessed_requirements"
 
 
 def test_optional_rewrites_do_not_invent_metrics_or_skills():
@@ -211,17 +212,18 @@ def test_scoring_exact_default_weights_and_redistribution():
 
 
 @pytest.mark.parametrize("options",[{"coverage_complete":False},{"layout_confidence":"low"}])
-def test_weak_input_withholds_overall(options):
-    assert calculate_score(points(*[("mandatory","matched")]*3),**options).overall is None
+def test_limited_confidence_returns_provisional_numeric_score(options):
+    score=calculate_score(points(*[("mandatory","matched")]*3),**options)
+    assert score.overall==100 and score.score_status=="provisional" and score.confidence=="low"
 
 
 def test_uncertain_items_stay_in_denominator_and_score_is_not_probability():
     score=calculate_score(points(("mandatory","matched"),("mandatory","uncertain"),("mandatory","not_evidenced")))
     assert score.overall==33 and score.categories[0].count==3
-    assert calculate_score(points(*[("mandatory","uncertain")]*3)).overall is None
-    assert calculate_score(points(*[("preferred","matched")]*3)).overall is None
-    assert calculate_score([]).overall is None
-    assert "not hiring" in score.meaning and score.rubric_version=="job-fit-v1"
+    assert calculate_score(points(*[("mandatory","uncertain")]*3)).overall==0
+    assert calculate_score(points(*[("preferred","matched")]*3)).overall==100
+    with pytest.raises(ValueError):calculate_score([])
+    assert "not hiring" in score.meaning and score.rubric_version=="job-fit-v2"
 
 
 def test_service_single_extraction_cache_no_raw_persistence_and_diagnostics(monkeypatch):

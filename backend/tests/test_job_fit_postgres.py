@@ -50,6 +50,53 @@ def test_persistence_duplicate_retry_owner_isolation_and_deletion(repository):
     with pytest.raises(HTTPException):repository.read(result.id,owner)
 
 
+def test_legacy_null_score_restores_on_read_without_backfill_or_llm(repository):
+    owner,req,llm,service=start(repository);original=service.analyze(req,owner)
+    with repository.engine.begin() as db:
+        with Session(bind=db) as session:
+            row=session.get(JobFitRecord,original.id);raw=dict(row.analysis)
+        raw["score"]={**raw["score"],"overall":None,"rubric_version":"job-fit-v1"}
+        raw["coverage_complete"]=False;raw.pop("unassessed_job_source_ids")
+        db.execute(update(JobFitRecord).where(JobFitRecord.id==original.id).values(analysis=raw))
+    restored=repository.read(original.id,owner)
+    assert restored.analysis.score.overall==53 and restored.analysis.score.score_status=="provisional"
+    assert restored.analysis.score.scope=="assessed_requirements" and restored.analysis.score.assessment_coverage is None
+    assert service.analyze(req,owner)==restored and llm.generate_json.call_count==2
+    with Session(repository.engine) as db:
+        assert db.get(JobFitRecord,original.id).analysis["score"]["overall"] is None
+    with pytest.raises(HTTPException) as exc:repository.read(original.id,"x"*43)
+    assert exc.value.status_code==404
+
+
+def test_known_coverage_gaps_persist_as_metadata_and_reduce_score(repository):
+    from test_job_fit import parsed,classified
+    from job_fit.schemas import ParsedJob
+    owner,req,llm,service=start(repository)
+    def generate(instructions,data,schema,**kwargs):
+        if schema is ParsedJob:
+            value=parsed();value.requirements.pop();value.context_source_ids=["jd_003"]
+        else:value=classified();value.matches.pop()
+        return kwargs["validator"](value)
+    llm.generate_json.side_effect=generate
+    result=service.analyze(req,owner)
+    assert result.analysis.unassessed_job_source_ids==["jd_003"]
+    assert result.analysis.score.overall==50 and result.analysis.score.assessed_alignment==75
+    assert result.analysis.score.unassessed_count==1 and result.analysis.score.assessment_coverage==66.67
+    assert repository.read(result.id,owner)==result
+
+
+def test_unrecoverable_legacy_report_keeps_owner_checks_and_deletion(repository):
+    owner,req,llm,service=start(repository);result=service.analyze(req,owner)
+    with repository.engine.begin() as db:
+        db.execute(update(JobFitRecord).where(JobFitRecord.id==result.id).values(analysis={"requirements":[]}))
+    restored=repository.read(result.id,owner)
+    assert restored.analysis is None and "insufficient structured data" in restored.legacy_notice
+    assert repository.history(owner).items[0].id==result.id
+    with pytest.raises(HTTPException):repository.read(result.id,"x"*43)
+    repository.remove(result.id,owner)
+    assert not repository.history(owner).items
+
+
 def test_concurrent_claim_only_one_owner_and_stale_lease_fenced(repository):
     owner="k"*43;analysis_id=uuid4()
     def claim():

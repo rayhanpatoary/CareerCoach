@@ -115,25 +115,37 @@ class ScoreCategory(StrictModel):
 
 
 class Score(StrictModel):
-    overall: int | None
+    overall: int = Field(ge=0,le=100,strict=True)
+    score_status: Literal["complete","provisional"]
+    confidence: Literal["high","moderate","low"]
+    confidence_reasons: list[str]
+    scope: Literal["full_posting","known_groups","assessed_requirements"]
+    assessed_count: int = Field(ge=1)
+    unassessed_count: int | None = Field(ge=0)
+    assessment_coverage: float | None = Field(ge=0,le=100)
+    assessed_alignment: float = Field(ge=0,le=100)
+    coverage_factor: float = Field(ge=0,le=1)
     reason: str
     categories: list[ScoreCategory]
     evidence_coverage: float
     uncertain_share: float
-    rubric_version: str = "job-fit-v1"
+    rubric_version: str = "job-fit-v2"
     meaning: str = "Estimated alignment of supplied CV evidence to stated job criteria; not hiring, ATS or interview-selection probability."
 
 
 class JobFitAnalysis(StrictModel):
     company: str
     language: Literal["en","de","mixed","und"]
-    requirements: list[AssessedRequirement]
+    requirements: list[AssessedRequirement] = Field(min_length=1)
     score: Score
     improvements: list[Improvement]
     rewrites: list[GroundedRewrite]
     extraction: ExtractionInfo
     coverage_complete: bool
     warnings: list[str]
+    # None means an older report did not retain its gap inventory. Empty means
+    # the new audit found no omitted groups; false coverage may still be unknown.
+    unassessed_job_source_ids: list[str] | None = Field(default=None,max_length=80)
 
 
 LIMITATIONS=[
@@ -152,6 +164,7 @@ class JobFitSummary(ReviewSummary):
 class JobFitReview(JobFitSummary):
     analysis: JobFitAnalysis | None
     limitations: list[str] = Field(default_factory=lambda:list(LIMITATIONS))
+    legacy_notice: str | None = None
 
 
 class JobFitHistory(StrictModel):

@@ -20,6 +20,13 @@ def mentioned(term,text):
     return any(re.search(r"(?<!\w)"+re.escape(value)+r"(?!\w)",NORM(text)) for value in terms)
 
 
+def unassessed_job_sources(output,clauses):
+    """Audit actual posting groups, never synthesize skills or classifications."""
+    used={r.jd_source_id for r in output.requirements};context=set(output.context_source_ids)
+    return [c.source_id for c in clauses if not c.heading and c.source_id not in used and
+        (c.explicit_requirement or c.source_id not in context)]
+
+
 def validate_job(output,clauses):
     sources={c.source_id:c for c in clauses};seen=set();used=set();warnings=[]
     for index,item in enumerate(output.requirements):

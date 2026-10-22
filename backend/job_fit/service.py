@@ -6,7 +6,7 @@ from cv.schemas import ExtractionInfo
 from interviews.repository import digest
 from interviews.llm import GenerationBudget
 from .job_description import parse_job_description
-from .grounding import validate_matches,validate_job
+from .grounding import validate_matches,validate_job,unassessed_job_sources
 from .schemas import ModelOutput,JobFitAnalysis,AssessedRequirement,ParsedJob,ClassifiedMatches
 from .scoring import calculate_score
 from .prompts import JOB_INSTRUCTIONS,MATCH_INSTRUCTIONS
@@ -65,12 +65,14 @@ class JobFitService:
                 classified=self.llm.generate_json(MATCH_INSTRUCTIONS,{"requirements":[dict(requirement_index=i,**r.model_dump()) for i,r in enumerate(job.requirements)],
                     "cv":document.payload()},ClassifiedMatches,tokens=3500,validator=validate_classifications,budget=budget)
                 output,warnings=validate_matches(assemble(classified),document,clauses)
+            missing_sources=unassessed_job_sources(output,clauses)
             analysis=JobFitAnalysis(company=request.company,language=output.language,
                 requirements=[AssessedRequirement(**r.model_dump(),id=f"requirement_{i+1:02d}",explanation=EXPLANATIONS[r.status]) for i,r in enumerate(output.requirements)],
-                score=calculate_score(output.requirements,coverage_complete=output.coverage_complete,layout_confidence=document.confidence),
+                score=calculate_score(output.requirements,coverage_complete=output.coverage_complete,layout_confidence=document.confidence,unassessed_count=len(missing_sources)),
                 improvements=output.improvements,rewrites=output.rewrites,coverage_complete=output.coverage_complete,
                 warnings=list(dict.fromkeys(diagnostics+warnings+document.warnings)),
-                extraction=ExtractionInfo(confidence=document.confidence,warnings=document.warnings,source_block_count=len(document.blocks),page_count=document.page_count))
+                extraction=ExtractionInfo(confidence=document.confidence,warnings=document.warnings,source_block_count=len(document.blocks),page_count=document.page_count),
+                unassessed_job_source_ids=missing_sources)
             return self.repository.complete(request.operation_id,owner,fence,analysis)
         except ValueError as error:
             self.repository.release(request.operation_id,owner,fence)
